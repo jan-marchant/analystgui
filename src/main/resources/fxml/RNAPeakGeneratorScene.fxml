@@ -13,23 +13,40 @@
         <URL value="@/styles/rnapeakgeneratorscene.css"/>
     </stylesheets>
     <top>
-        <ToolBar fx:id="toolBar" prefHeight="40.0" prefWidth="200.0" BorderPane.alignment="CENTER">
-            <items>
-                <CheckBox text="D2O" fx:id="d2oCheckBox"/>
-                <CheckBox text="C" fx:id="carbonCheckBox"/>
-                <CheckBox text="N" fx:id="nitrogenCheckBox"/>
-                <MenuButton text="Select">
-                    <items>
-                        <MenuItem text="Bases On" onAction="#setAllBasesOn"/>
-                        <MenuItem text="Bases Off" onAction="#setAllBasesOff"/>
-                        <MenuItem text="Riboses On" onAction="#setAllRibosesOn"/>
-                        <MenuItem text="Riboses Off" onAction="#setAllRibosesOff"/>
-                    </items>
-                </MenuButton>
-                <Label text="QuckCode:"/>
-                <TextField fx:id="quickCodeField"/>
-            </items>
-        </ToolBar>
+        <VBox>
+                <children>
+                    <HBox>
+                        <children>
+                            <Label text="Dataset" alignment="center_left"/>
+                            <ComboBox fx:id="genDatasetNameField" editable="false" HBox.hgrow="ALWAYS" minWidth="200"/>
+                            <Pane minWidth="50"/>
+                            <Button text="Load" fx:id="loadSelGroupButton" onAction="#loadSelGroup"/>
+                            <Button text="Apply" fx:id="applySelGroupButton" onAction="#applySelGroup"/>
+                            <Pane maxHeight="-Infinity" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
+                            <Button text="Setup lists" fx:id="setupSelGroupButton" onAction="#setupSelGroup" alignment="CENTER_RIGHT"/>
+                        </children>
+                    </HBox>
+                    <Separator />
+                    <ToolBar fx:id="toolBar" prefHeight="40.0" prefWidth="200.0" BorderPane.alignment="CENTER">
+                        <items>
+                            <CheckBox text="D2O" fx:id="d2oCheckBox"/>
+                            <CheckBox text="C" fx:id="carbonCheckBox"/>
+                            <CheckBox text="N" fx:id="nitrogenCheckBox"/>
+                            <MenuButton text="Select">
+                                <items>
+                                    <MenuItem text="Bases On" onAction="#setAllBasesOn"/>
+                                    <MenuItem text="Bases Off" onAction="#setAllBasesOff"/>
+                                    <MenuItem text="Riboses On" onAction="#setAllRibosesOn"/>
+                                    <MenuItem text="Riboses Off" onAction="#setAllRibosesOff"/>
+                                </items>
+                            </MenuButton>
+                            <Pane maxHeight="-Infinity" maxWidth="1.7976931348623157E308" HBox.hgrow="ALWAYS" />
+                            <Label text="QuickCode:"/>
+                            <TextField fx:id="quickCodeField"/>
+                        </items>
+                    </ToolBar>
+                </children>
+        </VBox>
     </top>
     <center>
         <GridPane>
@@ -90,15 +107,6 @@
                     </children>
                 </HBox>
                 <ListView fx:id="selGroupListView" prefHeight="80"/>
-                <HBox>
-                    <children>
-                        <Label text="Dataset" alignment="center_left"/>
-                        <ComboBox fx:id="genDatasetNameField" editable="false" HBox.hgrow="ALWAYS" minWidth="200"/>
-                        <Pane minWidth="50"/>
-                        <Button text="Load" fx:id="loadSelGroupButton" onAction="#loadSelGroup"/>
-                        <Button text="Apply" fx:id="applySelGroupButton" onAction="#applySelGroup"/>
-                    </children>
-                </HBox>
             </children>
         </VBox>
     </bottom>

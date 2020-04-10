@@ -93,6 +93,7 @@ public class AnalystApp extends MainApp {
     public static MolSceneController molController;
     public static AtomBrowser atomBrowser;
     public static RNAPeakGeneratorSceneController rnaPeakGenController;
+    public static RNAManagedListSceneController rnaManListController;
     public static PeakTableController peakTableController;
     public static NOETableController noeTableController;
     public static WindowIO windowIO = null;
@@ -404,7 +405,10 @@ public class AnalystApp extends MainApp {
         MenuItem rnaPeakGenMenuItem = new MenuItem("Show RNA Label Scheme");
         rnaPeakGenMenuItem.setOnAction(e -> showRNAPeakGenerator(e));
 
-        viewMenu.getItems().addAll(consoleMenuItem, dataMenuItem, attrMenuItem, procMenuItem, scannerMenuItem, rnaPeakGenMenuItem);
+        MenuItem rnaManListMenuItem = new MenuItem("Show RNA Managed Lists");
+        rnaManListMenuItem.setOnAction(e -> showRNAManagedList(e));
+
+        viewMenu.getItems().addAll(consoleMenuItem, dataMenuItem, attrMenuItem, procMenuItem, scannerMenuItem, rnaPeakGenMenuItem, rnaManListMenuItem);
 
         Menu peakMenu = new Menu("Peaks");
 
@@ -658,6 +662,20 @@ public class AnalystApp extends MainApp {
             rnaPeakGenController.getStage().toFront();
         } else {
             System.out.println("Coudn't make rnaPeakGenController ");
+        }
+    }
+
+    @FXML
+    private void showRNAManagedList(ActionEvent event) {
+        if (rnaManListController == null) {
+            rnaManListController = RNAManagedListSceneController.create();
+            rnaManListController.setDatasetList(LabelDataset.labelDatasetTable);
+        }
+        if (rnaManListController != null) {
+            rnaManListController.getStage().show();
+            rnaManListController.getStage().toFront();
+        } else {
+            System.out.println("Coudn't make rnaManListController ");
         }
     }
 

@@ -436,6 +436,14 @@ public class RNAPeakGeneratorSceneController implements Initializable {
     }
 
     @FXML
+    void setupSelGroup() {
+        Dataset dataset = Dataset.getDataset(genDatasetNameField.getValue());
+        if (dataset != null) {
+            System.out.println(dataset.getFileName());
+        }
+    }
+
+    @FXML
     void showSelGroup() {
         updateButtons();
     }

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.*?>
+<?import java.net.*?>
+<?import java.util.*?>
+<?import javafx.scene.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import org.controlsfx.control.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" prefHeight="350.0" prefWidth="750" styleClass="mainFxmlClass" fx:controller="org.nmrfx.processor.gui.RNAManagedListSceneController">
+    <top>
+        <ToolBar fx:id="toolBar" prefHeight="40.0" prefWidth="750" BorderPane.alignment="CENTER">
+            <items>
+            </items>
+        </ToolBar>
+    </top>
+    <center>
+        <TableView fx:id="tableView">
+            <columns>
+            </columns>
+        </TableView>
+    </center>
+</BorderPane>
