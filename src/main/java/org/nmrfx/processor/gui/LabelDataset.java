@@ -1,5 +1,6 @@
 package org.nmrfx.processor.gui;
 
+import javafx.application.Platform;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -7,6 +8,7 @@ import javafx.collections.ObservableList;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import org.nmrfx.processor.datasets.Dataset;
+import org.nmrfx.processor.datasets.DatasetListener;
 import org.nmrfx.processor.datasets.peaks.PeakList;
 import org.nmrfx.structure.chemistry.Atom;
 import org.nmrfx.structure.chemistry.Molecule;
@@ -14,23 +16,27 @@ import org.nmrfx.structure.chemistry.RNALabels;
 
 import java.util.*;
 
-public class LabelDataset {
+public class LabelDataset implements DatasetListener {
     /**
      * This class contains variables and methods for more easily keeping
      * track of active atoms in a given dataset
-     * TODO: add some logic to project load (or later) to set them up
+     * TODO: check with Bruce desired project close functionality
+     *  presently datasets aren't closed, and so these remain
+     *  also main stage remains (with datasets drawn)
      */
 
     private SimpleStringProperty name;
     private SimpleStringProperty labelScheme;
     private SimpleStringProperty condition;
     private SimpleStringProperty managedListName;
+    //TODO: consider removal - defunct?
     private SimpleBooleanProperty active;
 
     private Dataset dataset;
 
     //need to clear the map when the labelString changes. Implement a listener? Assuming it always changes through set then no need
-    //What about if dataset property is updated, this will not get the update.
+    //What about if dataset property is updated directly? This will not get the update. Could lead to inconsistencies.
+    //Perhaps need to rebuild managedList from masterlist on every start up?
     private HashMap<Atom,Boolean> atomActive;
     //private String labelString;
     //private PeakList managedList;
@@ -59,8 +65,8 @@ public class LabelDataset {
             i++;
         }
         masterList = new PeakList(base+ i,2);
-        //don't want this to show up in peak browser etc. Maybe it should though?
-        PeakList.peakListTable.remove(base+ i);
+        //Stop from appearing in browser etc.? But then also not saved in star file. Perhaps that's OK?
+        //PeakList.peakListTable.remove(base+ i);
     }
     public static LabelDataset find(Dataset dataset) {
         //better with Optional? labelDatasetTable.stream().filter(member -> member.getName() == dataset.getName()).findFirst();
@@ -74,12 +80,13 @@ public class LabelDataset {
 
     //Will want to add a listener? e.g. PeakList.peakListTable.addListener(mapChangeListener);
     //TODO: clear on Project close
-    //  clear on dataset close
-    //  update on dataset rename
+    //  perhaps only need to clear on dataset close actually - this must be done on project close
+    //  need to update name on dataset rename - perhaps better not to have a separate name actually
 
     public LabelDataset (Dataset dataset) {
         this.dataset=dataset;
         this.name=new SimpleStringProperty(dataset.getName());
+        //on creation, active is false
         this.active = new SimpleBooleanProperty(Boolean.parseBoolean(dataset.getProperty("active")));
         this.managedListName=new SimpleStringProperty(dataset.getProperty("managedList"));
         this.labelScheme = new SimpleStringProperty(dataset.getProperty("labelScheme"));
@@ -94,7 +101,12 @@ public class LabelDataset {
         this.atomActive= new HashMap<>();
 
         this.active.addListener( (obs, ov, nv) -> this.setActive(nv));
+        Platform.runLater(() -> {
+            Dataset.addObserver(this);
+                }
+        );
         //active should only be set to true if peaklist is set.
+        //peaklist initiation below
         /*
         //Actually I think let's take care of this on first peak add
         if (dataset.getProperty("managedList") == "") {
@@ -174,35 +186,19 @@ public class LabelDataset {
                 alert.setTitle("Label Scheme Changed");
                 alert.setHeaderText("Clear all labelling information for "+ this.getName() + "?");
                 alert.setContentText("This includes deleting its managed peaklist (" + this.getManagedListName() + ") if it exists.");
-
                 result = alert.showAndWait();
             }
             if (result.get() == ButtonType.OK) {
-                PeakList.remove(this.getManagedListName());
                 if (labelScheme.isEmpty()) {
-                    //Is this worth it? Could just set inactive?
-                    labelDatasetTable.remove(LabelDataset.this);
-                    dataset.removeProperty("active");
-                    dataset.removeProperty("labelScheme");
-                    dataset.removeProperty("managedList");
-                    dataset.removeProperty("condition");
-                    /*name=null;
-                    this.labelScheme =null;
-                    condition=null;
-                    managedListName=null;
-                    active=null;
-                    dataset=null;
-                    atomActive=null;*/
+                    this.delete();
                 } else {
-                    //Prompt are you sure. If yes then
-                    //remove all peaks from managed list
-                    //Reset hashmap when labelString updated
+                    PeakList.remove(this.getManagedListName());
                     this.atomActive.clear();
                     this.labelScheme.set(labelScheme);
                     dataset.addProperty("labelScheme", labelScheme);
+                    dataset.writeParFile();
                     this.updatePeaks();
                 }
-                dataset.writeParFile();
             }
         }
     }
@@ -313,6 +309,63 @@ public class LabelDataset {
         } else {
             System.out.println("Couldn't find atom");
             return false;
+        }
+    }
+
+    private void delete() {
+        PeakList.remove(this.getManagedListName());
+        Platform.runLater(() -> {
+            Dataset.removeObserver(this);
+                }
+        );
+        labelDatasetTable.remove(LabelDataset.this);
+        dataset.removeProperty("active");
+        dataset.removeProperty("labelScheme");
+        dataset.removeProperty("managedList");
+        dataset.removeProperty("condition");
+        dataset.writeParFile();
+    }
+
+    @Override
+    public void datasetAdded(Dataset dataset) {
+    }
+
+    @Override
+    public void datasetModified(Dataset dataset) {
+    }
+
+    @Override
+    public void datasetRemoved(Dataset dataset) {
+        if (dataset==this.dataset) {
+            if (Platform.isFxApplicationThread()) {
+                this.delete();
+            } else {
+                Platform.runLater(() -> {
+                    this.delete();
+                        }
+                );
+            }
+        }
+    }
+
+    @Override
+    public void datasetRenamed(Dataset dataset) {
+        if (dataset==this.dataset) {
+            if (Platform.isFxApplicationThread()) {
+                this.name.set(dataset.getName());
+            } else {
+                Platform.runLater(() -> {
+                    this.name.set(dataset.getName());
+                        }
+                );
+            }
+        }
+    }
+    public static void parseNew(Dataset dataset) {
+        if (find(dataset)==null) {
+            if (dataset.getProperty("labelScheme")!="") {
+                new LabelDataset(dataset);
+            }
         }
     }
 }
