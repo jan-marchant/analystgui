@@ -5,52 +5,36 @@
  */
 package org.nmrfx.processor.gui;
 
-import javafx.beans.property.ReadOnlyObjectWrapper;
-import javafx.collections.FXCollections;
-import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
-import javafx.collections.ObservableMap;
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.SelectionMode;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 import javafx.scene.control.cell.CheckBoxTableCell;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.control.cell.TextFieldTableCell;
-import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
-import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
-import javafx.scene.shape.Polygon;
+import javafx.scene.input.MouseEvent;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.util.Callback;
 import javafx.util.StringConverter;
 import javafx.util.converter.DefaultStringConverter;
-import javafx.util.converter.DoubleStringConverter;
-import org.nmrfx.processor.datasets.Dataset;
-import org.nmrfx.processor.gui.controls.FractionCanvas;
-import org.nmrfx.structure.chemistry.Molecule;
-import org.nmrfx.structure.chemistry.RNALabels;
 
 import java.io.IOException;
 import java.net.URL;
-import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
 import java.util.ResourceBundle;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class RNAManagedListSceneController implements Initializable {
 
     //static final DecimalFormat formatter = new DecimalFormat();
 
     private Stage stage;
-    @FXML
-    private ToolBar toolBar;
+    //@FXML
+    //private ToolBar toolBar;
     @FXML
     private TableView<LabelDataset> tableView;
 
@@ -78,11 +62,11 @@ public class RNAManagedListSceneController implements Initializable {
         RNAManagedListSceneController controller = null;
         Stage stage = new Stage(StageStyle.DECORATED);
         try {
-            Scene scene = new Scene((Pane) loader.load());
+            Scene scene = new Scene(loader.load());
             stage.setScene(scene);
             scene.getStylesheets().add("/styles/Styles.css");
 
-            controller = loader.<RNAManagedListSceneController>getController();
+            controller = loader.getController();
             controller.stage = stage;
             stage.setTitle("Managed List Setup");
             stage.show();
@@ -95,9 +79,9 @@ public class RNAManagedListSceneController implements Initializable {
 
     }
 
-    class DatasetStringFieldTableCell extends TextFieldTableCell<Dataset, String> {
+    static class DatasetStringFieldTableCell extends TextFieldTableCell<LabelDataset, String> {
 
-        DatasetStringFieldTableCell(StringConverter converter) {
+        DatasetStringFieldTableCell(StringConverter<String> converter) {
             super(converter);
         }
 
@@ -107,13 +91,13 @@ public class RNAManagedListSceneController implements Initializable {
             LabelDataset dataset = (LabelDataset) getTableRow().getItem();
             super.commitEdit(newValue);
             switch (column) {
-                case "labelString":
-                    dataset.setLabelString(newValue);
+                case "Labeling":
+                    dataset.setLabelScheme(newValue);
                     break;
-                case "managedList":
-                    dataset.setManagedList(newValue);
+                case "Managed List":
+                    dataset.setManagedListName(newValue);
                     break;
-                case "condition":
+                case "Condition":
                     dataset.setCondition(newValue);
                     break;
             }
@@ -121,46 +105,74 @@ public class RNAManagedListSceneController implements Initializable {
     }
 
     void initTable() {
-        StringConverter sConverter = new DefaultStringConverter();
+        StringConverter<String> sConverter = new DefaultStringConverter();
         tableView.setEditable(true);
         tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
 
         TableColumn<LabelDataset, String> fileNameCol = new TableColumn<>("Dataset");
-        fileNameCol.setCellValueFactory(new PropertyValueFactory("dataset"));
+        fileNameCol.setCellValueFactory(new PropertyValueFactory<>("name"));
         fileNameCol.setPrefWidth(200);
         fileNameCol.setEditable(false);
 
+        //TODO: on dbl click open up RNA Labels
         TableColumn<LabelDataset, String> labelCol = new TableColumn<>("Labeling");
-        labelCol.setCellValueFactory(new PropertyValueFactory("labelString"));
+        labelCol.setCellValueFactory(new PropertyValueFactory<>("labelScheme"));
         labelCol.setPrefWidth(200);
         labelCol.setEditable(false);
+        labelCol.setCellFactory(new Callback<TableColumn<LabelDataset, String>, TableCell<LabelDataset, String>>() {
+            @Override
+            public TableCell<LabelDataset, String> call(TableColumn<LabelDataset, String> col) {
+                final TableCell<LabelDataset, String> cell = new TableCell<LabelDataset, String>() {
+                    @Override
+                    public void updateItem(String labelScheme, boolean empty) {
+                        super.updateItem(labelScheme, empty);
+                        if (empty) {
+                            setText(null);
+                        } else {
+                            setText(labelScheme);
+                        }
+                    }
+                };
+                cell.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
+                    if (event.getClickCount() > 1) {
+                        LabelDataset ld=(LabelDataset) cell.getTableRow().getItem();
+                        ld.setupLabels();
+                    }
+                });
+                return cell;
+            }
+        });
+
 
         /*TableColumn<Dataset, String> listCol = new TableColumn<>("Managed List");
         listCol.setCellValueFactory(new PropertyValueFactory("manList"));
         listCol.setPrefWidth(200);
         listCol.setEditable(true);*/
         TableColumn<LabelDataset, String> listCol = new TableColumn<>("Managed List");
-        listCol.setCellFactory(tc -> new RNAManagedListSceneController.DatasetStringFieldTableCell(sConverter));
-        listCol.setCellValueFactory((TableColumn.CellDataFeatures<Dataset, String> p) -> {
+        listCol.setCellFactory(tc -> new DatasetStringFieldTableCell(sConverter));
+        listCol.setCellValueFactory(new PropertyValueFactory<>("managedListName"));
+        /*listCol.setCellValueFactory((TableColumn.CellDataFeatures<LabelDataset, String> p) -> {
             LabelDataset dataset = p.getValue();
-            String label = dataset.getManagedList();
+            String label = dataset.getManagedListName();
             return new ReadOnlyObjectWrapper(label);
-        });
+        });*/
+        listCol.setPrefWidth(225);
 
         TableColumn<LabelDataset, String> condCol = new TableColumn<>("Condition");
-        condCol.setCellValueFactory(new PropertyValueFactory("Condition"));
+        condCol.setCellFactory(tc -> new DatasetStringFieldTableCell(sConverter));
+        condCol.setCellValueFactory(new PropertyValueFactory<>("condition"));
         condCol.setPrefWidth(200);
         condCol.setEditable(true);
 
         TableColumn<LabelDataset, Boolean> activeCol = new TableColumn<>("Active");
-        activeCol.setCellValueFactory(new PropertyValueFactory("Active"));
+        activeCol.setCellValueFactory(new PropertyValueFactory<>("active"));
         activeCol.setCellFactory(tc -> new CheckBoxTableCell<>());
         activeCol.setPrefWidth(75);
         activeCol.setMaxWidth(75);
         activeCol.setResizable(false);
 
         tableView.getColumns().setAll(fileNameCol, labelCol, listCol,condCol,activeCol);
-        tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        //tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
     }
 
     public void setDatasetList(ObservableList<LabelDataset> datasets) {

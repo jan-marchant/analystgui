@@ -307,6 +307,15 @@ public class RNAPeakGeneratorSceneController implements Initializable {
         });
     }
 
+    public void setDataset(String name) {
+        try {
+            genDatasetNameField.getSelectionModel().select(name);
+            this.loadSelGroup();
+        } catch (Exception e) {
+            System.out.println("No dataset named "+name);
+        }
+    }
+
     void updateMolecule() {
         ObservableList<String> entityNames = FXCollections.observableArrayList();
         entityNames.add("*");
@@ -411,6 +420,10 @@ public class RNAPeakGeneratorSceneController implements Initializable {
     void applySelGroup() {
         Dataset dataset = Dataset.getDataset(genDatasetNameField.getValue());
         if (dataset != null) {
+            LabelDataset ld=LabelDataset.find(dataset);
+            if (ld==null) {
+                ld=new LabelDataset(dataset);
+            }
             StringBuilder sBuilder = new StringBuilder();
             for (String selGroup : selGroupList) {
                 if (sBuilder.length() != 0) {
@@ -418,7 +431,8 @@ public class RNAPeakGeneratorSceneController implements Initializable {
                 }
                 sBuilder.append(selGroup.trim());
             }
-            dataset.addProperty("labelScheme", sBuilder.toString());
+            //dataset.addProperty("labelScheme", sBuilder.toString());
+            ld.setLabelScheme(sBuilder.toString());
         }
     }
 

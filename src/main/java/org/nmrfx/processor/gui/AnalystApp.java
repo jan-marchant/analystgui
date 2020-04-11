@@ -675,7 +675,7 @@ public class AnalystApp extends MainApp {
             rnaManListController.getStage().show();
             rnaManListController.getStage().toFront();
         } else {
-            System.out.println("Coudn't make rnaManListController ");
+            System.out.println("Couldn't make rnaManListController ");
         }
     }
 
@@ -688,7 +688,7 @@ public class AnalystApp extends MainApp {
             atomController.getStage().show();
             atomController.getStage().toFront();
         } else {
-            System.out.println("Coudn't make atom controller");
+            System.out.println("Couldn't make atom controller");
         }
     }
 
