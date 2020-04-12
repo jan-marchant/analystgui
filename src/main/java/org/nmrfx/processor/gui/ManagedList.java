@@ -12,7 +12,7 @@ public class ManagedList extends PeakList {
     }
     public ManagedList(LabelDataset labelDataset,PeakList peakList) {
         super(labelDataset.getManagedListName()+"temp",labelDataset.getDataset().getNDim());
-        peakList.copy(labelDataset.getManagedListName()+"temp",true,true,true,false);
+        peakList.copy(labelDataset.getManagedListName()+"temp",true,false,true,false);
         //might not be necessary as next line should crunch
         peakList.remove();
         this.setName(labelDataset.getManagedListName());
