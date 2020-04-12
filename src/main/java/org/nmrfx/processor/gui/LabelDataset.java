@@ -4,12 +4,15 @@ import javafx.application.Platform;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
+import javafx.collections.MapChangeListener;
 import javafx.collections.ObservableList;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import org.nmrfx.processor.datasets.Dataset;
 import org.nmrfx.processor.datasets.DatasetListener;
+import org.nmrfx.processor.datasets.Nuclei;
 import org.nmrfx.processor.datasets.peaks.PeakList;
+import org.nmrfx.processor.datasets.peaks.SpectralDim;
 import org.nmrfx.structure.chemistry.Atom;
 import org.nmrfx.structure.chemistry.Molecule;
 import org.nmrfx.structure.chemistry.RNALabels;
@@ -29,6 +32,7 @@ public class LabelDataset implements DatasetListener {
     private SimpleStringProperty labelScheme;
     private SimpleStringProperty condition;
     private SimpleStringProperty managedListName;
+    private ManagedList managedList;
     //TODO: consider removal - defunct?
     private SimpleBooleanProperty active;
 
@@ -47,13 +51,15 @@ public class LabelDataset implements DatasetListener {
                                     * but then can override certain functions.
                                     * will be tricky working out when to do the copying though
                                     * need some kind of validate function to check whether it's got out of hand?
-                                    * TODO: Perhaps add a listener for whenever a dataset or peaklist is added. Check dataset
-                                    *  properties to see whether more action needed.*/
+                                    * TODO: Perhaps add a listener for whenever a peaklist is added.
+                                     * */
     //private Boolean active;
     //private String managedListName;
     //private String condition;
 
+
     public static ObservableList<LabelDataset> labelDatasetTable = FXCollections.observableArrayList();
+    private MapChangeListener<String, PeakList> peakmapChangeListener;
 
     //TODO:consider supporting >2D experiments
     public static PeakList masterList;
@@ -86,7 +92,8 @@ public class LabelDataset implements DatasetListener {
     public LabelDataset (Dataset dataset) {
         this.dataset=dataset;
         this.name=new SimpleStringProperty(dataset.getName());
-        //on creation, active is false
+        //on creation, active is false, on load active is true. Use as flag for updating peak lists? i.e. if changed from true to false, delete peaklist. if from false to true, create and update peaklist (as managedList).
+        //if loaded as true here then must already exist in project, so wait for peaklist to be loaded and set up a listener. listener removes itself when it finds and copies its list as a managedList.
         this.active = new SimpleBooleanProperty(Boolean.parseBoolean(dataset.getProperty("active")));
         this.managedListName=new SimpleStringProperty(dataset.getProperty("managedList"));
         this.labelScheme = new SimpleStringProperty(dataset.getProperty("labelScheme"));
@@ -101,10 +108,18 @@ public class LabelDataset implements DatasetListener {
         this.atomActive= new HashMap<>();
 
         this.active.addListener( (obs, ov, nv) -> this.setActive(nv));
+
         Platform.runLater(() -> {
             Dataset.addObserver(this);
                 }
         );
+
+        peakmapChangeListener = (MapChangeListener.Change<? extends String, ? extends PeakList> change) -> {
+            stealPeaklist();
+        };
+
+        PeakList.peakListTable.addListener(peakmapChangeListener);
+
         //active should only be set to true if peaklist is set.
         //peaklist initiation below
         /*
@@ -158,6 +173,24 @@ public class LabelDataset implements DatasetListener {
         //    rnaLabels.parseSelGroupsD(dataset, molecule, labelString);
         //}
         labelDatasetTable.add(this);
+        //when a project is loaded, datasets are loaded before peaklists
+        //if we do anything to setup managed lists as a new type of object it will be tricky to avoid crunching
+        //also note: looks like peaklists are only loaded from the STAR file (as long as it is valid)
+        //so just let the peaklist load, and then add a listener to peaklist changed, when it does and it's for a valid labelDataset do the copy thing?
+        //when a labelDataset is newly created, not as part of project load the peaklist should not exist
+        //but we want to update it. How to discriminate between the cases?
+    }
+
+    private void stealPeaklist () {
+        PeakList pl=PeakList.get(this.getManagedListName());
+        if (pl!=null) {
+            PeakList.peakListTable.removeListener(peakmapChangeListener);
+            //fixme need to wait for peaklist to be fully read before stealing it
+            Platform.runLater(() -> {
+                managedList = new ManagedList(this, pl);
+            }
+            );
+        }
     }
 
     public Dataset getDataset() {
@@ -197,6 +230,8 @@ public class LabelDataset implements DatasetListener {
                     this.labelScheme.set(labelScheme);
                     dataset.addProperty("labelScheme", labelScheme);
                     dataset.writeParFile();
+                    managedList=new ManagedList(this);
+                    this.initializeList();
                     this.updatePeaks();
                 }
             }
@@ -251,10 +286,65 @@ public class LabelDataset implements DatasetListener {
         return this.active.get();
     }
 
+    public void initializeList() {
+        System.out.println("Here I am");
+        managedList.fileName = dataset.getFileName();
+        for (int i = 0; i < dataset.getNDim(); i++) {
+            int dDim = i;
+            SpectralDim sDim = managedList.getSpectralDim(i);
+            sDim.setDimName(dataset.getLabel(dDim));
+            sDim.setSf(dataset.getSf(dDim));
+            sDim.setSw(dataset.getSw(dDim));
+            sDim.setSize(dataset.getSize(dDim));
+            double minTol = Math.round(100 * 2.0 * dataset.getSw(dDim) / dataset.getSf(dDim) / dataset.getSize(dDim)) / 100.0;
+            double tol = minTol;
+            Nuclei nuc = dataset.getNucleus(dDim);
+            if (null != nuc) {
+                switch (nuc) {
+                    case H1:
+                        tol = 0.05;
+                        break;
+                    case C13:
+                        tol = 0.6;
+                        break;
+                    case N15:
+                        tol = 0.2;
+                        break;
+                    default:
+                        tol = minTol;
+                }
+            }
+            tol = Math.min(tol, minTol);
+
+            sDim.setIdTol(tol);
+            sDim.setDataDim(dDim);
+            sDim.setNucleus(dataset.getNucleus(dDim).getNumberName());
+        }
+    }
+
     public void setActive(Boolean active) {
-        this.active.set(active);
-        dataset.addProperty("active", Boolean.toString(active));
-        dataset.writeParFile();
+        if (!active) {
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            alert.setTitle("Deactivate managed list?");
+            alert.setHeaderText("Clear managed list for " + this.getName() + "?");
+            alert.setContentText("This includes deleting its managed peaklist (" + this.getManagedListName() + ") if it exists.");
+            Optional<ButtonType> result = alert.showAndWait();
+
+            if (result.get() == ButtonType.OK) {
+                this.active.set(active);
+                PeakList.remove(this.getManagedListName());
+                dataset.addProperty("active", Boolean.toString(active));
+                dataset.writeParFile();
+            }
+        } else {
+            this.active.set(active);
+            dataset.addProperty("active", Boolean.toString(active));
+            dataset.writeParFile();
+            managedList=new ManagedList(this);
+            this.initializeList();
+            this.updatePeaks();
+
+        }
     }
 
     public void setupLabels() {
