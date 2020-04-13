@@ -158,6 +158,78 @@ public class PeakAtomPicker {
         }
     }
 
+    public void showAndWait(double x, double y, Peak peak) {
+        removePeakOnClose = peak != null;
+        double tol = 0.04;
+
+        Molecule mol = Molecule.getActive();
+        if (mol != null) {
+            for (ChoiceBox choiceBox : entityChoices) {
+                choiceBox.getItems().setAll(mol.entities.keySet());
+            }
+        }
+        FXMLController fxmlController = FXMLController.getActiveController();
+        PolyChart chart = fxmlController.getActiveChart();
+        List<Peak> selected = chart.getSelectedPeaks();
+        selPeak = null;
+        if (peak != null) {
+            selPeak = peak;
+        } else {
+            if (selected.size() == 1) {
+                selPeak = selected.get(0);
+            }
+            // fixme if more than one peak selected figure out if they're in row or column and set label
+            // for a single (appropriate) dimension"
+        }
+        if (selPeak != null) {
+            stage.setTitle("Peak Assigner: " + selPeak.getName());
+            PeakListAttributes usePeakAttr = null;
+            List<PeakListAttributes> peakAttrs = chart.getPeakListAttributes();
+            for (PeakListAttributes peakAttr : peakAttrs) {
+                if (selPeak.getPeakList() == peakAttr.getPeakList()) {
+                    usePeakAttr = peakAttr;
+                    break;
+                }
+            }
+            if (usePeakAttr != null) {
+                peakDims = usePeakAttr.getPeakDim();
+                Dataset dataset = chart.getDataset();
+                int i = 0;
+                for (int peakDim : peakDims) {
+                    double shift = selPeak.getPeakDim(peakDim).getChemShiftValue();
+                    List<AtomDelta> atoms1 = AtomBrowser.getMatchingAtomNames(dataset, shift, tol);
+                    System.out.println(atoms1.toString());
+                    atomChoices[i].getItems().clear();
+                    atomChoices[i].getItems().add("Other");
+                    atomDeltaMaps[i].clear();
+                    for (AtomDelta atomDelta : atoms1) {
+                        atomChoices[i].getItems().add(atomDelta.toString());
+                        atomDeltaMaps[i].put(atomDelta.getName(), atomDelta);
+                    }
+                    if (!atoms1.isEmpty()) {
+                        atomChoices[i].setValue(atoms1.get(0).toString());
+                    }
+                    ppmLabels[i].setText(String.format("%8.3f ppm +/ %.3f", shift, tol));
+                    i++;
+                }
+            }
+        }
+        //stage.toFront();
+        double screenWidth = Screen.getPrimary().getBounds().getWidth();
+        if (x > (screenWidth / 2)) {
+            x = x - stage.getWidth() - xOffset;
+        } else {
+            x = x + 100;
+        }
+
+        y = y - stage.getHeight() / 2.0;
+
+        stage.setX(x);
+        stage.setY(y);
+        stage.showAndWait();
+    }
+
+
     void cancel() {
         if (removePeakOnClose) {
             if (selPeak != null) {

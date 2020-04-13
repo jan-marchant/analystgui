@@ -11,8 +11,7 @@ import javafx.scene.control.ButtonType;
 import org.nmrfx.processor.datasets.Dataset;
 import org.nmrfx.processor.datasets.DatasetListener;
 import org.nmrfx.processor.datasets.Nuclei;
-import org.nmrfx.processor.datasets.peaks.PeakList;
-import org.nmrfx.processor.datasets.peaks.SpectralDim;
+import org.nmrfx.processor.datasets.peaks.*;
 import org.nmrfx.structure.chemistry.Atom;
 import org.nmrfx.structure.chemistry.Molecule;
 import org.nmrfx.structure.chemistry.RNALabels;
@@ -23,7 +22,9 @@ public class LabelDataset implements DatasetListener {
     /**
      * This class contains variables and methods for more easily keeping
      * track of active atoms in a given dataset
-     * TODO: check with Bruce desired project close functionality
+     */
+
+    /*TODO: check with Bruce desired project close functionality
      *  presently datasets aren't closed, and so these remain
      *  also main stage remains (with datasets drawn)
      */
@@ -33,47 +34,27 @@ public class LabelDataset implements DatasetListener {
     private SimpleStringProperty condition;
     private SimpleStringProperty managedListName;
     private ManagedList managedList;
-    //TODO: consider removal - defunct?
     private SimpleBooleanProperty active;
 
     private Dataset dataset;
 
     //need to clear the map when the labelString changes. Implement a listener? Assuming it always changes through set then no need
     //What about if dataset property is updated directly? This will not get the update. Could lead to inconsistencies.
-    //Perhaps need to rebuild managedList from masterlist on every start up?
     private HashMap<Atom,Boolean> atomActive;
-    //private String labelString;
-    //private PeakList managedList;
-                                    /**
-                                    * Maybe should set up another type which extends PeakList and implements new functionality.
-                                    * will need to copy the loaded peaklist into this new type with same name, delete original
-                                    * but keep in the peakListTable so it can be selected and is saved.
-                                    * but then can override certain functions.
-                                    * will be tricky working out when to do the copying though
-                                    * need some kind of validate function to check whether it's got out of hand?
-                                    * TODO: Perhaps add a listener for whenever a peaklist is added.
-                                     * */
-    //private Boolean active;
-    //private String managedListName;
-    //private String condition;
-
+    private HashMap<Atom,Integer> atomPercent;
+    /**
+    * Maybe should set up another type which extends PeakList and implements new functionality.
+    * will need to copy the loaded peaklist into this new type with same name, delete original
+    * but keep in the peakListTable so it can be selected and is saved.
+    * but then can override certain functions.
+    * will be tricky working out when to do the copying though
+    * need some kind of validate function to check whether it's got out of hand?
+    * TODO: Perhaps add a listener for whenever a peaklist is added.
+     * */
 
     public static ObservableList<LabelDataset> labelDatasetTable = FXCollections.observableArrayList();
     private MapChangeListener<String, PeakList> peakmapChangeListener;
 
-    //TODO:consider supporting >2D experiments
-    public static PeakList masterList;
-
-    static {
-        String base="managed_master";
-        int i=1;
-        while (PeakList.get(base+ i)!=null) {
-            i++;
-        }
-        masterList = new PeakList(base+ i,2);
-        //Stop from appearing in browser etc.? But then also not saved in star file. Perhaps that's OK?
-        //PeakList.peakListTable.remove(base+ i);
-    }
     public static LabelDataset find(Dataset dataset) {
         //better with Optional? labelDatasetTable.stream().filter(member -> member.getName() == dataset.getName()).findFirst();
         for (LabelDataset ld : LabelDataset.labelDatasetTable) {
@@ -84,10 +65,115 @@ public class LabelDataset implements DatasetListener {
         return null;
     }
 
+    public static LabelDataset findByName(String name) {
+        //better with Optional? labelDatasetTable.stream().filter(member -> member.getName() == dataset.getName()).findFirst();
+        for (LabelDataset ld : LabelDataset.labelDatasetTable) {
+            if (name.equals(ld.getName())) {
+                return ld;
+            }
+        }
+        return null;
+    }
+
+
     //Will want to add a listener? e.g. PeakList.peakListTable.addListener(mapChangeListener);
-    //TODO: clear on Project close
-    //  perhaps only need to clear on dataset close actually - this must be done on project close
-    //  need to update name on dataset rename - perhaps better not to have a separate name actually
+
+    public static LabelDataset getMaster() {
+        return master;
+    }
+
+    public static ManagedList getMasterList() {
+        ManagedList masterList=master.managedList;
+        if (masterList==null) {
+            PeakList.peakListTable.removeListener(master.peakmapChangeListener);
+            //TODO: consider more than 2 dims
+            masterList=new ManagedList(getMaster(),2);
+            master.managedList=masterList;
+            //might need something like this - not sure how D1 / D2 will behave
+            //getMaster().initializeList();
+        }
+        return masterList;
+    }
+
+    private static volatile LabelDataset master = new LabelDataset() {
+        @Override
+        public Boolean isAtomActive (Atom atom) {
+            if (atom != null) {
+                return true;
+            }
+            return false;
+        }
+        @Override
+        public Integer getAtomPercent (Atom atom) {
+            if (atom!=null) {
+                return 100;
+            } else {
+                System.out.println("Couldn't find atom");
+                return 0;
+            }
+        }
+
+        @Override
+        public float getPeakPercent (Peak peak) {
+            return 100;
+        }
+
+        @Override
+        protected void delete() {
+            System.out.println("Not allowed for master");
+        }
+
+        @Override
+        public void setDataset(Dataset dataset) {
+            System.out.println("Not allowed for master");
+        }
+
+        @Override
+        public void setManagedListName(String managedListName) {
+            System.out.println("Not allowed for master");
+        }
+
+        @Override
+        public void setCondition(String condition) {
+            System.out.println("Not allowed for master");
+        }
+
+        @Override
+        public void setActive(Boolean active) {
+            System.out.println("Not allowed for master");
+        }
+
+        @Override
+        public void setupLabels() {
+            System.out.println("Not allowed for master");
+        }
+
+        @Override
+        public ManagedList getManagedList() {
+            //if list doesn't exist, this is where to create it, after first deleting listener
+            return LabelDataset.getMasterList();
+        }
+    };
+
+    private LabelDataset () {
+        this.dataset = null;
+        this.name = new SimpleStringProperty("master");
+        this.active = new SimpleBooleanProperty(Boolean.parseBoolean("true"));
+        //fixme magic peaklist name!
+        this.managedListName = new SimpleStringProperty("master_managed");
+        this.managedList=null;
+        this.labelScheme = new SimpleStringProperty("");
+        this.condition = new SimpleStringProperty("master_managed");
+
+        peakmapChangeListener = (MapChangeListener.Change<? extends String, ? extends PeakList> change) -> {
+            stealPeaklist();
+        };
+
+        PeakList.peakListTable.addListener(peakmapChangeListener);
+
+        //labelDatasetTable.add(this);
+    }
+
 
     public LabelDataset (Dataset dataset) {
         this.dataset=dataset;
@@ -106,6 +192,7 @@ public class LabelDataset implements DatasetListener {
             setCondition("managed_"+dataset.getName().split("\\.")[0]);
         }
         this.atomActive= new HashMap<>();
+        this.atomPercent= new HashMap<>();
 
         this.active.addListener( (obs, ov, nv) -> this.setActive(nv));
 
@@ -120,65 +207,8 @@ public class LabelDataset implements DatasetListener {
 
         PeakList.peakListTable.addListener(peakmapChangeListener);
 
-        //active should only be set to true if peaklist is set.
-        //peaklist initiation below
-        /*
-        //Actually I think let's take care of this on first peak add
-        if (dataset.getProperty("managedList") == "") {
-            this.setActive(false);
-        }
 
-        if (this.active) {
-
-            this.managedList = PeakList.get(this.managedListName);
-            if (this.managedList==null) {
-                this.managedList = new PeakList(dataset.getProperty("managedList"), dataset.getNDim());
-                managedList.fileName = dataset.getFileName();
-                for (int i = 0; i < dataset.getNDim(); i++) {
-                    int dDim = i;
-                    SpectralDim sDim = managedList.getSpectralDim(i);
-                    sDim.setDimName(dataset.getLabel(dDim));
-                    sDim.setSf(dataset.getSf(dDim));
-                    sDim.setSw(dataset.getSw(dDim));
-                    sDim.setSize(dataset.getSize(dDim));
-                    double minTol = Math.round(100 * 2.0 * dataset.getSw(dDim) / dataset.getSf(dDim) / dataset.getSize(dDim)) / 100.0;
-                    double tol = minTol;
-                    Nuclei nuc = dataset.getNucleus(dDim);
-                    if (null != nuc) {
-                        switch (nuc) {
-                            case H1:
-                                tol = 0.05;
-                                break;
-                            case C13:
-                                tol = 0.6;
-                                break;
-                            case N15:
-                                tol = 0.2;
-                                break;
-                            default:
-                                tol = minTol;
-                        }
-                    }
-                    tol = Math.min(tol, minTol);
-
-                    sDim.setIdTol(tol);
-                    sDim.setDataDim(dDim);
-                    sDim.setNucleus(dataset.getNucleus(dDim).getNumberName());
-                }
-            }
-        }*/
-        //Collection<Molecule> molecules = StructureProject.getActive().getMolecules();
-        //RNALabels rnaLabels = new RNALabels();
-        //for (Molecule molecule : molecules) {
-        //    rnaLabels.parseSelGroupsD(dataset, molecule, labelString);
-        //}
         labelDatasetTable.add(this);
-        //when a project is loaded, datasets are loaded before peaklists
-        //if we do anything to setup managed lists as a new type of object it will be tricky to avoid crunching
-        //also note: looks like peaklists are only loaded from the STAR file (as long as it is valid)
-        //so just let the peaklist load, and then add a listener to peaklist changed, when it does and it's for a valid labelDataset do the copy thing?
-        //when a labelDataset is newly created, not as part of project load the peaklist should not exist
-        //but we want to update it. How to discriminate between the cases?
     }
 
     private void stealPeaklist () {
@@ -227,6 +257,7 @@ public class LabelDataset implements DatasetListener {
                 } else {
                     PeakList.remove(this.getManagedListName());
                     this.atomActive.clear();
+                    this.atomPercent.clear();
                     this.labelScheme.set(labelScheme);
                     dataset.addProperty("labelScheme", labelScheme);
                     dataset.writeParFile();
@@ -238,19 +269,34 @@ public class LabelDataset implements DatasetListener {
         }
     }
 
-    /*public PeakList getManagedList() {
+    public ManagedList getManagedList() {
+        if (managedList==null) {
+            //This could happen if labeling set up, and active set, but project not saved with new peaklist
+            //This is possibly a reason not to write pars so aggressively, but we would still be at the mercy of
+            //user initiated peak par writing without then saving.
+            //TODO: consider whether project should be saved when user initiates a par write? It can lead
+            // to issues with referencing etc. as well as this problem otherwise
+            PeakList.peakListTable.removeListener(peakmapChangeListener);
+            managedList=new ManagedList(this);
+            initializeList();
+            updatePeaks();
+        }
+
         return managedList;
     }
-
-    public void setManagedList(PeakList managedList) {
+    /*
+    public void setManagedList(ManagedList managedList) {
         this.managedList = managedList;
         dataset.addProperty("managedList", managedList.getName());
         dataset.writeParFile();
     }*/
 
     public void updatePeaks() {
-
+        for (Peak peak : getMasterList().peaks()) {
+            managedList.addLinkedPeak(peak, 100);
+        }
     }
+
     public String getManagedListName() {
         return this.managedListName.get();
     }
@@ -287,7 +333,6 @@ public class LabelDataset implements DatasetListener {
     }
 
     public void initializeList() {
-        System.out.println("Here I am");
         managedList.fileName = dataset.getFileName();
         for (int i = 0; i < dataset.getNDim(); i++) {
             int dDim = i;
@@ -335,10 +380,12 @@ public class LabelDataset implements DatasetListener {
                 PeakList.remove(this.getManagedListName());
                 dataset.addProperty("active", Boolean.toString(active));
                 dataset.writeParFile();
+            } else {
+                this.active.set(true);
             }
         } else {
-            this.active.set(active);
-            dataset.addProperty("active", Boolean.toString(active));
+            this.active.set(true);
+            dataset.addProperty("active", Boolean.toString(true));
             dataset.writeParFile();
             managedList=new ManagedList(this);
             this.initializeList();
@@ -368,12 +415,12 @@ public class LabelDataset implements DatasetListener {
     //Perhaps worth it for filtering peaklists
     public Boolean isAtomActive (Atom atom) {
         if (atom!=null) {
-            Boolean active = atomActive.get(atom);
-            if (active==null) {
-                active = RNALabels.isAtomInLabelString(atom, this.labelScheme.get());
-                atomActive.put(atom, active);
+            Boolean l_active = atomActive.get(atom);
+            if (l_active==null) {
+                l_active = RNALabels.isAtomInLabelString(atom, this.labelScheme.get());
+                atomActive.put(atom, l_active);
             }
-            return active;
+            return l_active;
         } else {
             System.out.println("Couldn't find atom");
             return false;
@@ -389,21 +436,61 @@ public class LabelDataset implements DatasetListener {
             System.out.println("No active molecule");
             return false;
         }
+        return isAtomActive(atom);
+    }
+
+    public Integer getAtomPercent (Atom atom) {
         if (atom!=null) {
-            Boolean active = atomActive.get(atom);
-            if (active==null) {
-                active = RNALabels.isAtomInLabelString(atom, this.labelScheme.get());
-                atomActive.put(atom, active);
+            Integer percent = atomPercent.get(atom);
+            if (percent==null) {
+                percent = RNALabels.atomPercentLabelString(atom, this.labelScheme.get());
+                if (percent>100) {
+                    System.out.println("Check labeling string - "+atom.getName()+" is apparently "+percent+"% labeled");
+                    percent=100;
+                }
+                atomPercent.put(atom, percent);
             }
-            return active;
+            return percent;
         } else {
             System.out.println("Couldn't find atom");
-            return false;
+            return 0;
         }
     }
 
-    private void delete() {
-        PeakList.remove(this.getManagedListName());
+    public Integer getAtomPercent (String atomString) {
+        //Need error handling for atom doesn't exist I guess
+        Atom atom;
+        try {
+            atom=Molecule.getAtomByName(atomString);
+        } catch (Exception e) {
+            System.out.println("No active molecule");
+            return 0;
+        }
+        return getAtomPercent(atom);
+    }
+
+    public float getPeakPercent(Peak peak) {
+        //TODO: support labeling schemes like A28/Ar (i.e. should not see A2/8-Ar NOEs from same residue in same molecule
+        // means subtle difference in label string parsing
+
+        //TODO: Add GUI support for setting labeling percent
+        Float total=null;
+        float atomFraction;
+        AtomResonance resonance;
+        for (PeakDim peakDim : peak.getPeakDims()) {
+            resonance = (AtomResonance) peakDim.getResonance();
+            atomFraction=(float) getAtomPercent(resonance.getAtom()) /100;
+            if (total==null) {
+                total=atomFraction;
+            } else {
+                total*=atomFraction;
+            }
+        }
+        return total==null?0:total;
+    }
+
+    protected void delete() {
+        ManagedList.remove(this.getManagedListName());
         Platform.runLater(() -> {
             Dataset.removeObserver(this);
                 }
@@ -414,6 +501,9 @@ public class LabelDataset implements DatasetListener {
         dataset.removeProperty("managedList");
         dataset.removeProperty("condition");
         dataset.writeParFile();
+        if (labelDatasetTable.isEmpty()) {
+            ManagedList.remove(LabelDataset.getMaster().getManagedListName());
+        }
     }
 
     @Override
