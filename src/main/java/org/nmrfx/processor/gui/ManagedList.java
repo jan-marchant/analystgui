@@ -63,11 +63,14 @@ public class ManagedList extends PeakList {
     @Override
     public Peak addPeak(Peak newPeak) {
         //will this need to be a ManagedPeak class to keep proper track of modifications?
+        //fixme: what about when getNewPeak called? need to be careful
         //TODO: consider behavior when Resonances are SimpleResonance instead of AtomResonance
         //TODO: Ensure same assignments not allocated twice
         //TODO: Handle peak chemical shifts according to freeze thaw status
         //TODO: Set slide condition etc.
         //TODO: Set slideable etc.
+        //TODO: Add diagonal peak - as a linked peak? Gives opportunity for not adding if
+        // later evolution of labelstring allows / suggests
 
         newPeak.initPeakDimContribs();
         Boolean showPicker=false;
@@ -86,21 +89,65 @@ public class ManagedList extends PeakList {
             //peakpicker doAssign() only sets labels - possible fixme
             for (PeakDim peakDim : newPeak.getPeakDims()) {
                 resonance=(AtomResonance) peakDim.getResonance();
+                //fixme: only considers active molecule
                 resonance.setAtom(Molecule.getAtomByName(peakDim.getLabel()));
             }
         }
 
         float percent=labelDataset.getPeakPercent(newPeak);
-
+        //don't repick existing peaks
         if (percent>0) {
+            for (Peak peak : peaks()) {
+                    int count=0;
+                    for (int i=0;i<nDim;i++) {
+                        if (((AtomResonance) newPeak.getPeakDim(i).getResonance()).getAtom()
+                            ==((AtomResonance) peak.getPeakDim(i).getResonance()).getAtom()) {
+                            count++;
+                        }
+                    }
+                    if (count==nDim) {
+                        //handle matching peak. for now just quit
+                        return null;
+                        //break;
+                    }
+            }
+
             //TODO: add check for whether peak already exists
             peaks().add(newPeak);
             clearIndex();
+            //add diagonal
+            Boolean diag=false;
+            Peak dpeak = new Peak(this, nDim);
+            if (nDim==2 &&
+                    ((AtomResonance) newPeak.getPeakDim(0).getResonance()).getAtom().getElementNumber()==
+                            ((AtomResonance) newPeak.getPeakDim(1).getResonance()).getAtom().getElementNumber()) {
+
+                newPeak.copyTo(dpeak);
+                dpeak.getPeakDim(1).setChemShiftValue(newPeak.getPeakDim(0).getChemShiftValue());
+                dpeak.getPeakDim(0).setChemShiftValue(newPeak.getPeakDim(1).getChemShiftValue());
+                //TODO: tweak bounds
+                dpeak.getPeakDim(1).setResonance(newPeak.getPeakDim(0).getResonance());
+                dpeak.getPeakDim(0).setResonance(newPeak.getPeakDim(1).getResonance());
+                peaks().add(dpeak);
+                clearIndex();
+                diag=true;
+            }
             //copy to other appropriate lists - use relative weights to set peak size
-            LabelDataset.getMasterList().addLinkedPeak(newPeak,percent);
+            //filter peaks is simply just a copy to the master list!
+            //though need to overload with handling for no assignments
+            //could be a "skip asking" variable read before bringing up the atompicker
+            if (LabelDataset.getMaster()!=labelDataset) {
+                LabelDataset.getMasterList().addLinkedPeak(newPeak, percent);
+                if (diag) {
+                    LabelDataset.getMasterList().addLinkedPeak(dpeak, percent);
+                }
+            }
             for (LabelDataset ld : LabelDataset.labelDatasetTable) {
                 if (ld!=labelDataset && ld.isActive()) {
                     ld.getManagedList().addLinkedPeak(newPeak, percent);
+                    if (diag) {
+                        ld.getManagedList().addLinkedPeak(dpeak, percent);
+                    }
                 }
             }
             //TODO: update any active canvases

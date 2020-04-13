@@ -387,10 +387,10 @@ public class LabelDataset implements DatasetListener {
             this.active.set(true);
             dataset.addProperty("active", Boolean.toString(true));
             dataset.writeParFile();
+            PeakList.peakListTable.removeListener(peakmapChangeListener);
             managedList=new ManagedList(this);
             this.initializeList();
             this.updatePeaks();
-
         }
     }
 
