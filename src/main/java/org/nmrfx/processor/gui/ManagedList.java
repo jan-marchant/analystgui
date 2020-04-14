@@ -6,7 +6,10 @@ import org.nmrfx.processor.datasets.peaks.*;
 import org.nmrfx.structure.chemistry.Atom;
 import org.nmrfx.structure.chemistry.Molecule;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class ManagedList extends PeakList {
     private LabelDataset labelDataset;
@@ -65,8 +68,6 @@ public class ManagedList extends PeakList {
         //will this need to be a ManagedPeak class to keep proper track of modifications?
         //fixme: what about when getNewPeak called? need to be careful
         //TODO: consider behavior when Resonances are SimpleResonance instead of AtomResonance
-        //TODO: Ensure same assignments not allocated twice
-        //TODO: Handle peak chemical shifts according to freeze thaw status
         //TODO: Set slide condition etc.
         //TODO: Set slideable etc.
         //TODO: Add diagonal peak - as a linked peak? Gives opportunity for not adding if
@@ -111,8 +112,6 @@ public class ManagedList extends PeakList {
                         //break;
                     }
             }
-
-            //TODO: add check for whether peak already exists
             peaks().add(newPeak);
             clearIndex();
             //add diagonal
@@ -125,7 +124,6 @@ public class ManagedList extends PeakList {
                 newPeak.copyTo(dpeak);
                 dpeak.getPeakDim(1).setChemShiftValue(newPeak.getPeakDim(0).getChemShiftValue());
                 dpeak.getPeakDim(0).setChemShiftValue(newPeak.getPeakDim(1).getChemShiftValue());
-                //TODO: tweak bounds
                 dpeak.getPeakDim(1).setResonance(newPeak.getPeakDim(0).getResonance());
                 dpeak.getPeakDim(0).setResonance(newPeak.getPeakDim(1).getResonance());
                 peaks().add(dpeak);
@@ -158,6 +156,7 @@ public class ManagedList extends PeakList {
 
     public void addLinkedPeak(Peak manPeak,float percent) {
         //TODO: add check for whether peak already exists
+        //TODO: Add diagonal peak
         float intensity=manPeak.getIntensity();
         float new_percent=labelDataset.getPeakPercent(manPeak);
         //this doesn't account for spin diffusion - only for "breakthrough" peaks

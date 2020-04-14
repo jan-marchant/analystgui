@@ -1,8 +1,7 @@
 package org.nmrfx.processor.gui;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceBox;
@@ -150,6 +149,8 @@ public class PeakAtomPicker {
                     }
                     if (!atoms1.isEmpty()) {
                         atomChoices[i].setValue(atoms1.get(0).toString());
+                    } else {
+                        atomChoices[i].setValue("Other");
                     }
                     ppmLabels[i].setText(String.format("%8.3f ppm +/ %.3f", shift, tol));
                     i++;
@@ -208,6 +209,8 @@ public class PeakAtomPicker {
                     }
                     if (!atoms1.isEmpty()) {
                         atomChoices[i].setValue(atoms1.get(0).toString());
+                    } else {
+                        atomChoices[i].setValue("Other");
                     }
                     ppmLabels[i].setText(String.format("%8.3f ppm +/ %.3f", shift, tol));
                     i++;
@@ -234,7 +237,11 @@ public class PeakAtomPicker {
         if (removePeakOnClose) {
             if (selPeak != null) {
                 PeakList peakList = selPeak.getPeakList();
-                peakList.removePeak(selPeak);
+                try {
+                    peakList.removePeak(selPeak);
+                } catch (Exception e) {
+
+                }
                 FXMLController.getActiveController().getActiveChart().drawPeakLists(true);
             }
         }
@@ -250,6 +257,7 @@ public class PeakAtomPicker {
 
             if (value == null) {
             } else if (value.equals("Other")) {
+                //not assigned from match to existing peak
                 String entityName = entityChoices[i].getValue();
                 String aName = atomFields[i].getText();
                 String atomSpecifier;
@@ -260,6 +268,9 @@ public class PeakAtomPicker {
                         atomSpecifier = aName;
                     }
                     peakDim0.setLabel(atomSpecifier);
+                    //for general peaklists, allow multiple assignments of same atom?
+                    //if so, handle clashes in ManagedList class
+                    //A clash is where two peakDims with the same condition are at different chemical shifts.
                 }
             } else if (value.length() > 0) {
                 String[] fields = value.split(" ");
@@ -271,15 +282,46 @@ public class PeakAtomPicker {
                     if (atomDelta.getPeakDim() != null) {
                         PeakDim peakDim1 = atomDelta.getPeakDim();
                         if (peakDim1.getLabel().equals("")) {
+                            //how could this be reached? isn't atomSpecifier set from this peakDim??
                             PeakList.linkPeakDims(peakDim0, peakDim1);
                             // force a reset of shifts so new peak gets shifted to the groups shift
                             peakDim0.setChemShift(peakDim0.getChemShift());
                             peakDim0.setFrozen(peakDim0.isFrozen());
                             peakDim0.setLabel(atomSpecifier);
                         } else {
+                            //TODO: Consider whether picked peak should be automatically frozen
+                            //TODO: Should we honor slideCondition flags below?
                             PeakList.linkPeakDims(peakDim1, peakDim0);
-                            peakDim0.setChemShift(peakDim1.getChemShift());
-                            peakDim0.setFrozen(peakDim1.isFrozen());
+                            //String cond=peakDim0.getPeak().peakList.getSampleConditionLabel();
+                            String cond=peakDim0.getSampleConditionLabel();
+                            Float newShift=peakDim0.getChemShift();
+                            List<PeakDim> peakDims=peakDim0.getResonance().getPeakDims();
+                            Set<PeakDim> updateMe=new HashSet<>();
+                            Boolean freezeMe=false;
+                            for (PeakDim peakDim : peakDims) {
+                                if (peakDim==peakDim0) {
+                                    continue;
+                                }
+                                if (peakDim.getSampleConditionLabel().equals(cond)) {
+                                        if (peakDim.isFrozen()) {
+                                            newShift = peakDim.getChemShift();
+                                            updateMe.add(peakDim0);
+                                            freezeMe=true;
+                                        } else {
+                                            updateMe.add(peakDim);
+                                        }
+                                } else {
+                                    if (!peakDim.isFrozen()) {
+                                        updateMe.add(peakDim);
+                                    }
+                                }
+                            }
+                            //peakDim.peakDimUpdated(); private - but seems to be used from outside package elsewhere?
+                            //peakDim0.setChemShift(peakDim1.getChemShift());
+                            for (PeakDim peakDim : updateMe) {
+                                peakDim.setChemShift(newShift);
+                            }
+                            peakDim0.setFrozen(freezeMe);
                         }
                     }
 
