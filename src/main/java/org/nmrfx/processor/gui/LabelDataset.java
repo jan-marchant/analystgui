@@ -86,8 +86,8 @@ public class LabelDataset implements DatasetListener {
         ManagedList masterList=master.managedList;
         if (masterList==null) {
             PeakList.peakListTable.removeListener(master.peakmapChangeListener);
-            //TODO: consider more than 2 dims
-            masterList=new ManagedList(getMaster(),2);
+            //TODO: any need to consider more than 5 dims?
+            masterList=new ManagedList(getMaster(),5);
             master.managedList=masterList;
             //might need something like this - not sure how D1 / D2 will behave
             //getMaster().initializeList();
@@ -293,6 +293,7 @@ public class LabelDataset implements DatasetListener {
 
     public void updatePeaks() {
         for (Peak peak : getMasterList().peaks()) {
+            //fixme: this doesn't work - e.g. may miss diagonals
             managedList.addLinkedPeak(peak, 100);
         }
     }
@@ -486,7 +487,7 @@ public class LabelDataset implements DatasetListener {
                 total*=atomFraction;
             }
         }
-        return total==null?0:total;
+        return total==null?0:100*total;
     }
 
     protected void delete() {

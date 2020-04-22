@@ -18,11 +18,13 @@ public class ManagedList extends PeakList {
         super(labelDataset.getManagedListName(),labelDataset.getDataset().getNDim());
         this.labelDataset=labelDataset;
         this.setSampleConditionLabel(labelDataset.getCondition());
+        this.setSlideable(true);
     }
     public ManagedList(LabelDataset labelDataset, int n) {
         super(labelDataset.getManagedListName(),n);
         this.labelDataset=labelDataset;
         this.setSampleConditionLabel(labelDataset.getCondition());
+        this.setSlideable(true);
     }
     public ManagedList(LabelDataset labelDataset,PeakList peakList) {
         super(labelDataset.getManagedListName()+"temp",peakList.getNDim());
@@ -58,9 +60,21 @@ public class ManagedList extends PeakList {
         //this.idLast = peakList.idLast;
         this.reIndex();
 
+        //update charts which match
+        List<String> peakListList = new ArrayList<>();
+        peakListList.add(this.getName());
+
+        FXMLController.getActiveController().charts.stream().forEach(chart -> {
+            chart.peakListAttributesList.forEach((peakListAttr) -> {
+                if (peakListAttr.getPeakList()==peakList) {
+                    peakListAttr.setPeakList(this);
+                }
+            });
+        });
         peakList.remove();
         this.setName(labelDataset.getManagedListName());
         this.labelDataset=labelDataset;
+        this.setSlideable(true);
     }
     @Override
     public ManagedPeak addPeak(Peak newPeak) {
@@ -198,7 +212,7 @@ public class ManagedList extends PeakList {
         }
     }
     public void deleteMatchingPeaks(Peak peak) {
-        for (Peak matchingPeak : getMatchingPeaks(peak)) {
+        for (Peak matchingPeak : getMatchingPeaks(peak,false)) {
             for (PeakDim peakDim : matchingPeak.peakDims) {
                 peakDim.remove();
                 if (peakDim.hasMultiplet()) {
@@ -212,7 +226,7 @@ public class ManagedList extends PeakList {
         reIndex();
     }
 
-    public List<Peak> getMatchingPeaks(Peak searchPeak) {
+    public List<Peak> getMatchingPeaks(Peak searchPeak,Boolean includeSelf) {
         List<Peak> matchingPeaks;
         matchingPeaks = new ArrayList<>();
         List<Peak> matchOneDimPeaks;
@@ -223,9 +237,11 @@ public class ManagedList extends PeakList {
         Boolean first=true;
         for (PeakDim peakDim : searchPeak.getPeakDims()) {
             for (PeakDim linkedPeakDim : peakDim.getLinkedPeakDims()) {
-                //Only consider each peakDim once. Otherwise a diagonal peak would match
-                // all crosspeaks. This seems a bit naff. fixme
-                if (!seenPeakDims.contains(linkedPeakDim)) {
+                //Only consider each peakDim once.
+                // If a peak has already matched this peakDim, don't include.
+                // Otherwise issues with diagonal peak matching.
+                // This is a bit naff. fixme
+                if (!seenPeakDims.contains(linkedPeakDim) && !matchOneDimPeaks.contains(linkedPeakDim.getPeak())) {
                     matchOneDimPeaks.add(linkedPeakDim.getPeak());
                     seenPeakDims.add(linkedPeakDim);
                 }
@@ -238,6 +254,9 @@ public class ManagedList extends PeakList {
                 matchingPeaks.retainAll(matchOneDimPeaks);
                 matchOneDimPeaks.clear();
             }
+        }
+        if (!includeSelf) {
+            matchingPeaks.remove(searchPeak);
         }
         return matchingPeaks;
     }
