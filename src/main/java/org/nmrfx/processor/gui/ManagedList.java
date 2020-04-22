@@ -3,29 +3,29 @@ package org.nmrfx.processor.gui;
 import org.nmrfx.processor.datasets.Dataset;
 import org.nmrfx.processor.datasets.peaks.*;
 
-import org.nmrfx.structure.chemistry.Atom;
 import org.nmrfx.structure.chemistry.Molecule;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+
 
 public class ManagedList extends PeakList {
     private LabelDataset labelDataset;
     //SNR required for picking peak
-    private static double detectionlimit=3;
+    private static double detectionLimit =3;
 
     public ManagedList(LabelDataset labelDataset) {
         super(labelDataset.getManagedListName(),labelDataset.getDataset().getNDim());
         this.labelDataset=labelDataset;
+        this.setSampleConditionLabel(labelDataset.getCondition());
     }
     public ManagedList(LabelDataset labelDataset, int n) {
         super(labelDataset.getManagedListName(),n);
         this.labelDataset=labelDataset;
+        this.setSampleConditionLabel(labelDataset.getCondition());
     }
     public ManagedList(LabelDataset labelDataset,PeakList peakList) {
-        super(labelDataset.getManagedListName()+"temp",labelDataset.getDataset().getNDim());
+        super(labelDataset.getManagedListName()+"temp",peakList.getNDim());
         //peakList.copy(labelDataset.getManagedListName()+"temp",true,false,true,false);
         //might not be necessary as next line should crunch
 
@@ -34,7 +34,8 @@ public class ManagedList extends PeakList {
         this.scale = peakList.scale;
         this.setDetails(peakList.getDetails());
         this.setSampleLabel(peakList.getSampleLabel());
-        this.setSampleConditionLabel(peakList.getSampleConditionLabel());
+        //this.setSampleConditionLabel(peakList.getSampleConditionLabel());
+        this.setSampleConditionLabel(labelDataset.getCondition());
 
         for (int i = 0; i < nDim; i++) {
             this.setSpectralDim(peakList.getSpectralDim(i).copy(this),i);
@@ -42,21 +43,19 @@ public class ManagedList extends PeakList {
 
         for (int i = 0; i < peakList.peaks().size(); i++) {
             Peak peak = peakList.peaks().get(i);
-            Peak newPeak = peak.copy(this);
-            newPeak.setIdNum(peak.getIdNum());
-            newPeak.initPeakDimContribs();
+            ManagedPeak newPeak = new ManagedPeak(this,peak);
             peaks().add(newPeak);
             clearIndex();
 
-            peak.copyLabels(newPeak);
+            //peak.copyLabels(newPeak);
 
-            for (int j = 0; j < peak.peakDims.length; j++) {
+            /*for (int j = 0; j < peak.peakDims.length; j++) {
                 PeakDim peakDim1 = peak.peakDims[j];
                 PeakDim peakDim2 = newPeak.peakDims[j];
                 PeakList.linkPeakDims(peakDim1, peakDim2);
-            }
+            }*/
         }
-        this.idLast = peakList.idLast;
+        //this.idLast = peakList.idLast;
         this.reIndex();
 
         peakList.remove();
@@ -64,7 +63,7 @@ public class ManagedList extends PeakList {
         this.labelDataset=labelDataset;
     }
     @Override
-    public Peak addPeak(Peak newPeak) {
+    public ManagedPeak addPeak(Peak newPeak) {
         //will this need to be a ManagedPeak class to keep proper track of modifications?
         //fixme: what about when getNewPeak called? need to be careful
         //TODO: consider behavior when Resonances are SimpleResonance instead of AtomResonance
@@ -72,6 +71,8 @@ public class ManagedList extends PeakList {
         //TODO: Set slideable etc.
         //TODO: Add diagonal peak - as a linked peak? Gives opportunity for not adding if
         // later evolution of labelstring allows / suggests
+        //fixme: Might be better to immediately pick master peak with a call to add peak - only adding exactly as picked, then amend this logic to pick on all non master lists
+        // including diagonals, when they match
 
         newPeak.initPeakDimContribs();
         Boolean showPicker=false;
@@ -107,25 +108,36 @@ public class ManagedList extends PeakList {
                         }
                     }
                     if (count==nDim) {
-                        //handle matching peak. for now just quit
-                        return null;
+                        //handle matching peak. for now just do nothing
+                        //deleted peaks are a pain to keep in sync across multiple lists. So I will prevent this from being possible.
+                        //peak deletion will immediately compress and degap all non master lists.
+                        //For now the master list should retain its peak, but it will be deleted.
+                        //if (peak.isDeleted()) {
+                        //    peak.setStatus(0);
+                        //    newPeak=peak;
+                        //} else {
+                            return null;
+                        //}
                         //break;
                     }
             }
-            peaks().add(newPeak);
+            ManagedPeak manPeak=new ManagedPeak(this,newPeak);
+
+            peaks().add(manPeak);
             clearIndex();
             //add diagonal
             Boolean diag=false;
-            Peak dpeak = new Peak(this, nDim);
-            if (nDim==2 &&
-                    ((AtomResonance) newPeak.getPeakDim(0).getResonance()).getAtom().getElementNumber()==
-                            ((AtomResonance) newPeak.getPeakDim(1).getResonance()).getAtom().getElementNumber()) {
-
-                newPeak.copyTo(dpeak);
-                dpeak.getPeakDim(1).setChemShiftValue(newPeak.getPeakDim(0).getChemShiftValue());
-                dpeak.getPeakDim(0).setChemShiftValue(newPeak.getPeakDim(1).getChemShiftValue());
-                dpeak.getPeakDim(1).setResonance(newPeak.getPeakDim(0).getResonance());
-                dpeak.getPeakDim(0).setResonance(newPeak.getPeakDim(1).getResonance());
+            ManagedPeak dpeak = new ManagedPeak(this, nDim);
+            if ((nDim==2) &&
+                    (((AtomResonance) manPeak.getPeakDim(0).getResonance()).getAtom().getElementNumber()==
+                            ((AtomResonance) manPeak.getPeakDim(1).getResonance()).getAtom().getElementNumber()) &&
+                    (((AtomResonance) manPeak.getPeakDim(0).getResonance()).getAtom()!=((AtomResonance) manPeak.getPeakDim(1).getResonance()).getAtom())
+            ) {
+                manPeak.copyTo(dpeak);
+                dpeak.getPeakDim(1).setChemShiftValue(manPeak.getPeakDim(0).getChemShiftValue());
+                dpeak.getPeakDim(0).setChemShiftValue(manPeak.getPeakDim(1).getChemShiftValue());
+                dpeak.getPeakDim(1).setResonance(manPeak.getPeakDim(0).getResonance());
+                dpeak.getPeakDim(0).setResonance(manPeak.getPeakDim(1).getResonance());
                 peaks().add(dpeak);
                 clearIndex();
                 diag=true;
@@ -135,21 +147,21 @@ public class ManagedList extends PeakList {
             //though need to overload with handling for no assignments
             //could be a "skip asking" variable read before bringing up the atompicker
             if (LabelDataset.getMaster()!=labelDataset) {
-                LabelDataset.getMasterList().addLinkedPeak(newPeak, percent);
+                LabelDataset.getMasterList().addLinkedPeak(manPeak, percent);
                 if (diag) {
                     LabelDataset.getMasterList().addLinkedPeak(dpeak, percent);
                 }
             }
             for (LabelDataset ld : LabelDataset.labelDatasetTable) {
                 if (ld!=labelDataset && ld.isActive()) {
-                    ld.getManagedList().addLinkedPeak(newPeak, percent);
+                    ld.getManagedList().addLinkedPeak(manPeak, percent);
                     if (diag) {
                         ld.getManagedList().addLinkedPeak(dpeak, percent);
                     }
                 }
             }
             //TODO: update any active canvases
-            return newPeak;
+            return manPeak;
          }
         return null;
     }
@@ -167,7 +179,8 @@ public class ManagedList extends PeakList {
             Double noise=ds.guessNoiseLevel();
             if (noise==null) {
                 active=true;
-            } else if (new_intensity>detectionlimit*noise) {
+            } else if (new_intensity> detectionLimit *noise) {
+                //Need to watch peak intensity changes to update I guess
                 active=true;
             }
         } else {
@@ -175,17 +188,57 @@ public class ManagedList extends PeakList {
             active=true;
         }
         if (active) {
-            Peak newManPeak=manPeak.copy(this);
+            ManagedPeak newManPeak=new ManagedPeak(this,manPeak);
             newManPeak.setIntensity(new_intensity);
             //TODO: change bounds of newManPeak to reflect new intensity
-            //newManPeak.initPeakDimContribs();
-            for (int i = 0; i < manPeak.getNDim(); i++) {
-                newManPeak.getPeakDim(i).setResonance(manPeak.getPeakDim(i).getResonance());
-            }
             peaks().add(newManPeak);
             clearIndex();
             //ensure resonances match
             //scale intensity
         }
+    }
+    public void deleteMatchingPeaks(Peak peak) {
+        for (Peak matchingPeak : getMatchingPeaks(peak)) {
+            for (PeakDim peakDim : matchingPeak.peakDims) {
+                peakDim.remove();
+                if (peakDim.hasMultiplet()) {
+                    Multiplet multiplet = peakDim.getMultiplet();
+                }
+            }
+            unLinkPeak(matchingPeak);
+            matchingPeak.markDeleted();
+            peaks().remove(matchingPeak);
+        }
+        reIndex();
+    }
+
+    public List<Peak> getMatchingPeaks(Peak searchPeak) {
+        List<Peak> matchingPeaks;
+        matchingPeaks = new ArrayList<>();
+        List<Peak> matchOneDimPeaks;
+        matchOneDimPeaks = new ArrayList<>();
+        List<PeakDim> seenPeakDims;
+        seenPeakDims = new ArrayList<>();
+
+        Boolean first=true;
+        for (PeakDim peakDim : searchPeak.getPeakDims()) {
+            for (PeakDim linkedPeakDim : peakDim.getLinkedPeakDims()) {
+                //Only consider each peakDim once. Otherwise a diagonal peak would match
+                // all crosspeaks. This seems a bit naff. fixme
+                if (!seenPeakDims.contains(linkedPeakDim)) {
+                    matchOneDimPeaks.add(linkedPeakDim.getPeak());
+                    seenPeakDims.add(linkedPeakDim);
+                }
+            }
+            if (first) {
+                matchingPeaks.addAll(matchOneDimPeaks);
+                matchOneDimPeaks.clear();
+                first=false;
+            } else {
+                matchingPeaks.retainAll(matchOneDimPeaks);
+                matchOneDimPeaks.clear();
+            }
+        }
+        return matchingPeaks;
     }
 }
