@@ -509,6 +509,14 @@ public class LabelDataset implements DatasetListener {
 
     @Override
     public void datasetAdded(Dataset dataset) {
+        if (Platform.isFxApplicationThread()) {
+            LabelDataset.parseNew(dataset);
+        } else {
+            Platform.runLater(() -> {
+                        LabelDataset.parseNew(dataset);
+                    }
+            );
+        }
     }
 
     @Override

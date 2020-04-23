@@ -815,11 +815,9 @@ public class AnalystApp extends MainApp {
     public void datasetAdded(Dataset dataset) {
         if (Platform.isFxApplicationThread()) {
             FXMLController.updateDatasetList();
-            LabelDataset.parseNew(dataset);
         } else {
             Platform.runLater(() -> {
                 FXMLController.updateDatasetList();
-                LabelDataset.parseNew(dataset);
             }
             );
         }
