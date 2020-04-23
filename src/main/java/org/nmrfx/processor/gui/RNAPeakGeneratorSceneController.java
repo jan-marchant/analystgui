@@ -214,9 +214,6 @@ public class RNAPeakGeneratorSceneController implements Initializable {
         updateGenDatasetNames();
         updateMolecule();
         entityChoiceBox.setValue("*");
-        genDatasetNameField.setOnAction(e -> {
-            this.loadSelGroup();
-        });
     }
 
     void doQuickCode(KeyEvent e, String code) {
@@ -308,15 +305,6 @@ public class RNAPeakGeneratorSceneController implements Initializable {
         Dataset.datasets().stream().sorted().forEach(d -> {
             genDatasetNameField.getItems().add(d.getName());
         });
-    }
-
-    public void setDataset(String name) {
-        try {
-            genDatasetNameField.getSelectionModel().select(name);
-            this.loadSelGroup();
-        } catch (Exception e) {
-            System.out.println("No dataset named "+name);
-        }
     }
 
     void updateMolecule() {
@@ -423,10 +411,6 @@ public class RNAPeakGeneratorSceneController implements Initializable {
     void applySelGroup() {
         Dataset dataset = Dataset.getDataset(genDatasetNameField.getValue());
         if (dataset != null) {
-            LabelDataset ld=LabelDataset.find(dataset);
-            if (ld==null) {
-                ld=new LabelDataset(dataset);
-            }
             StringBuilder sBuilder = new StringBuilder();
             for (String selGroup : selGroupList) {
                 if (sBuilder.length() != 0) {
@@ -434,8 +418,7 @@ public class RNAPeakGeneratorSceneController implements Initializable {
                 }
                 sBuilder.append(selGroup.trim());
             }
-            //dataset.addProperty("labelScheme", sBuilder.toString());
-            ld.setLabelScheme(sBuilder.toString());
+            dataset.addProperty("labelScheme", sBuilder.toString());
         }
     }
 
@@ -451,14 +434,6 @@ public class RNAPeakGeneratorSceneController implements Initializable {
                     selGroupList.add(labelScheme);
                 }
             }
-        }
-    }
-
-    @FXML
-    void setupSelGroup() {
-        Dataset dataset = Dataset.getDataset(genDatasetNameField.getValue());
-        if (dataset != null) {
-            System.out.println(dataset.getFileName());
         }
     }
 
