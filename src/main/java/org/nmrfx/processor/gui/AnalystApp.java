@@ -746,7 +746,7 @@ public class AnalystApp extends MainApp {
         }
     }
 
-    private void loadProject(Path path) {
+    protected void loadProject(Path path) {
         if (path != null) {
             String projectName = path.getFileName().toString();
             GUIStructureProject project = new GUIStructureProject(projectName);
