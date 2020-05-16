@@ -1,8 +1,7 @@
 package org.nmrfx.processor.gui;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceBox;
@@ -150,6 +149,8 @@ public class PeakAtomPicker {
                     }
                     if (!atoms1.isEmpty()) {
                         atomChoices[i].setValue(atoms1.get(0).toString());
+                    } else {
+                        atomChoices[i].setValue("Other");
                     }
                     ppmLabels[i].setText(String.format("%8.3f ppm +/ %.3f", shift, tol));
                     i++;
@@ -158,11 +159,89 @@ public class PeakAtomPicker {
         }
     }
 
+    public void showAndWait(double x, double y, Peak peak) {
+        removePeakOnClose = peak != null;
+        double tol = 0.04;
+
+        Molecule mol = Molecule.getActive();
+        if (mol != null) {
+            for (ChoiceBox choiceBox : entityChoices) {
+                choiceBox.getItems().setAll(mol.entities.keySet());
+            }
+        }
+        FXMLController fxmlController = FXMLController.getActiveController();
+        PolyChart chart = fxmlController.getActiveChart();
+        List<Peak> selected = chart.getSelectedPeaks();
+        selPeak = null;
+        if (peak != null) {
+            selPeak = peak;
+        } else {
+            if (selected.size() == 1) {
+                selPeak = selected.get(0);
+            }
+            // fixme if more than one peak selected figure out if they're in row or column and set label
+            // for a single (appropriate) dimension"
+        }
+        if (selPeak != null) {
+            stage.setTitle("Peak Assigner: " + selPeak.getName());
+            PeakListAttributes usePeakAttr = null;
+            List<PeakListAttributes> peakAttrs = chart.getPeakListAttributes();
+            for (PeakListAttributes peakAttr : peakAttrs) {
+                if (selPeak.getPeakList() == peakAttr.getPeakList()) {
+                    usePeakAttr = peakAttr;
+                    break;
+                }
+            }
+            if (usePeakAttr != null) {
+                peakDims = usePeakAttr.getPeakDim();
+                Dataset dataset = chart.getDataset();
+                int i = 0;
+                for (int peakDim : peakDims) {
+                    double shift = selPeak.getPeakDim(peakDim).getChemShiftValue();
+                    List<AtomDelta> atoms1 = AtomBrowser.getMatchingAtomNames(dataset, shift, tol);
+                    System.out.println(atoms1.toString());
+                    atomChoices[i].getItems().clear();
+                    atomChoices[i].getItems().add("Other");
+                    atomDeltaMaps[i].clear();
+                    for (AtomDelta atomDelta : atoms1) {
+                        atomChoices[i].getItems().add(atomDelta.toString());
+                        atomDeltaMaps[i].put(atomDelta.getName(), atomDelta);
+                    }
+                    if (!atoms1.isEmpty()) {
+                        atomChoices[i].setValue(atoms1.get(0).toString());
+                    } else {
+                        atomChoices[i].setValue("Other");
+                    }
+                    ppmLabels[i].setText(String.format("%8.3f ppm +/ %.3f", shift, tol));
+                    i++;
+                }
+            }
+        }
+        //stage.toFront();
+        double screenWidth = Screen.getPrimary().getBounds().getWidth();
+        if (x > (screenWidth / 2)) {
+            x = x - stage.getWidth() - xOffset;
+        } else {
+            x = x + 100;
+        }
+
+        y = y - stage.getHeight() / 2.0;
+
+        stage.setX(x);
+        stage.setY(y);
+        stage.showAndWait();
+    }
+
+
     void cancel() {
         if (removePeakOnClose) {
             if (selPeak != null) {
                 PeakList peakList = selPeak.getPeakList();
-                peakList.removePeak(selPeak);
+                try {
+                    peakList.removePeak(selPeak);
+                } catch (Exception e) {
+
+                }
                 FXMLController.getActiveController().getActiveChart().drawPeakLists(true);
             }
         }
@@ -178,6 +257,7 @@ public class PeakAtomPicker {
 
             if (value == null) {
             } else if (value.equals("Other")) {
+                //not assigned from match to existing peak
                 String entityName = entityChoices[i].getValue();
                 String aName = atomFields[i].getText();
                 String atomSpecifier;
@@ -188,6 +268,9 @@ public class PeakAtomPicker {
                         atomSpecifier = aName;
                     }
                     peakDim0.setLabel(atomSpecifier);
+                    //for general peaklists, allow multiple assignments of same atom?
+                    //if so, handle clashes in ManagedList class
+                    //A clash is where two peakDims with the same condition are at different chemical shifts.
                 }
             } else if (value.length() > 0) {
                 String[] fields = value.split(" ");
@@ -199,15 +282,46 @@ public class PeakAtomPicker {
                     if (atomDelta.getPeakDim() != null) {
                         PeakDim peakDim1 = atomDelta.getPeakDim();
                         if (peakDim1.getLabel().equals("")) {
+                            //how could this be reached? isn't atomSpecifier set from this peakDim??
                             PeakList.linkPeakDims(peakDim0, peakDim1);
                             // force a reset of shifts so new peak gets shifted to the groups shift
                             peakDim0.setChemShift(peakDim0.getChemShift());
                             peakDim0.setFrozen(peakDim0.isFrozen());
                             peakDim0.setLabel(atomSpecifier);
                         } else {
+                            //TODO: Consider whether picked peak should be automatically frozen
+                            //TODO: Should we honor slideCondition flags below?
                             PeakList.linkPeakDims(peakDim1, peakDim0);
-                            peakDim0.setChemShift(peakDim1.getChemShift());
-                            peakDim0.setFrozen(peakDim1.isFrozen());
+                            //String cond=peakDim0.getPeak().peakList.getSampleConditionLabel();
+                            String cond=peakDim0.getSampleConditionLabel();
+                            Float newShift=peakDim0.getChemShift();
+                            List<PeakDim> peakDims=peakDim0.getResonance().getPeakDims();
+                            Set<PeakDim> updateMe=new HashSet<>();
+                            Boolean freezeMe=false;
+                            for (PeakDim peakDim : peakDims) {
+                                if (peakDim==peakDim0) {
+                                    continue;
+                                }
+                                if (peakDim.getSampleConditionLabel().equals(cond)) {
+                                        if (peakDim.isFrozen()) {
+                                            newShift = peakDim.getChemShift();
+                                            updateMe.add(peakDim0);
+                                            freezeMe=true;
+                                        } else {
+                                            updateMe.add(peakDim);
+                                        }
+                                } else {
+                                    if (!peakDim.isFrozen()) {
+                                        updateMe.add(peakDim);
+                                    }
+                                }
+                            }
+                            //peakDim.peakDimUpdated(); private - but seems to be used from outside package elsewhere?
+                            //peakDim0.setChemShift(peakDim1.getChemShift());
+                            for (PeakDim peakDim : updateMe) {
+                                peakDim.setChemShift(newShift);
+                            }
+                            peakDim0.setFrozen(freezeMe);
                         }
                     }
 

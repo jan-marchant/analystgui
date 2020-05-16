@@ -430,7 +430,9 @@ public class RNAPeakGeneratorSceneController implements Initializable {
             String selGroupPar = dataset.getProperty("labelScheme");
             String[] labelSchemes = selGroupPar.split(";");
             for (String labelScheme : labelSchemes) {
-                selGroupList.add(labelScheme);
+                if (!labelScheme.isEmpty()) {
+                    selGroupList.add(labelScheme);
+                }
             }
         }
     }
