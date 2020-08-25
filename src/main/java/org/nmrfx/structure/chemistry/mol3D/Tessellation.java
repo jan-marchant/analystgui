@@ -8,6 +8,7 @@ import java.util.function.Function;
 import javafx.geometry.Point3D;
 import javafx.scene.shape.TriangleMesh;
 import org.apache.commons.math3.geometry.euclidean.threed.Rotation;
+import org.apache.commons.math3.geometry.euclidean.threed.RotationConvention;
 import org.apache.commons.math3.geometry.euclidean.threed.Vector3D;
 
 /**
@@ -190,7 +191,7 @@ public class Tessellation {
         lastPerpVec = B;
         Vector3D C = A.crossProduct(B).normalize();
 
-        Rotation rotation = new Rotation(A, v);
+        Rotation rotation = new Rotation(A, v, RotationConvention.VECTOR_OPERATOR);
         Vector3D spoke = rotation.applyTo(C);
 
         Vector3D pos = p1.add(radius, spoke);
@@ -211,7 +212,7 @@ public class Tessellation {
         lastPerpVec = B;
         Vector3D C = A.crossProduct(B).normalize();
 
-        Rotation rotation = new Rotation(A, v);
+        Rotation rotation = new Rotation(A, v, RotationConvention.VECTOR_OPERATOR);
         Vector3D spoke = rotation.applyTo(C);
 
         Vector3D pos = p1.add(radius, spoke);
